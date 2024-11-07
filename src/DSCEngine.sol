@@ -27,6 +27,7 @@ import { console } from "forge-std/Script.sol";
 import { DecentralizedStableCoin } from "./DecentralizedStableCoin.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import { AggregatorV3Interface } from "@chainlink-brownie-contracts/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
 
 /**
  * @title DSCEngine
@@ -59,12 +60,16 @@ contract DSCEngine is ReentrancyGuard{
     //////////////////////
     mapping(address token => address priceFeed) private s_priceFeeds; // token price feed
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
+    mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
+    address[] private s_allowedCollateralTokens; // tokens permitidos
+    
     DecentralizedStableCoin private immutable i_dsc; // DSC contract
 
     ///////////////////////
     //*    Events       //
     //////////////////////
     event CollateralDeposited(address indexed user, address indexed token, uint256 amount);
+    event TransferTokenCollateral(address indexed user, address indexed token, uint256 amount);
 
     ///////////////////
     //* Modifiers    //
@@ -79,9 +84,6 @@ contract DSCEngine is ReentrancyGuard{
         _;
     }
 
-     ///////////////////
-    //* Functions    //
-    ///////////////////
     constructor(
         address[] memory tokenAddressess,
         address[] memory priceFeedAddressess,
@@ -96,6 +98,7 @@ contract DSCEngine is ReentrancyGuard{
         for (uint256 i = 0; i < tokenAddressess.length; i++) {
             // llenamos el mapping
             s_priceFeeds[tokenAddressess[i]] = priceFeedAddressess[i];
+            s_allowedCollateralTokens.push(tokenAddressess[i]); // add token to allow list
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
@@ -129,6 +132,20 @@ contract DSCEngine is ReentrancyGuard{
         if (!success) {
             revert DSCEngine__TransferTokenCollateralFailed();
         }
+        // Emitimos un evento de transferencia de tokens
+        emit TransferTokenCollateral(msg.sender, tokenCollateralAdrress, amountCollateral);
+    }
+
+    /*
+     * 
+     * @notice follow CEI
+     * @param amountDscToMint the amount of DSC to mint
+     * @notice the must have more collateral value than the minimum thereshold
+     */
+    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant { // verificar si el valor del collateral > DSC amount
+        s_DSCMinted[msg.sender] += amountDscToMint;
+        // check if they minter too much collateral (revert)
+        _revertIfHealthFactorIsBroken(msg.sender, amountDscToMint);
     }
 
     function depositCollateralAndMintDsc() external {}
@@ -146,4 +163,48 @@ contract DSCEngine is ReentrancyGuard{
     // permite ver que tn saludables estan las personas
     function getHealthFactor() external view returns (uint256) {}
 
+    //////////////////////////////////////////////////
+    //*  Private & Internal view Functions          //
+    //////////////////////////////////////////////////
+    // internal functions utilizamos el _antecesdido para declararlas
+
+    function _getAccountInformation(address user) private view returns (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) {
+        totalDscMinted = s_DSCMinted[user];
+        // totalCollateralValueInUSD = 
+        return (totalDscMinted, s_collateralDeposited[user]);
+    }
+
+    /*
+     * @notice Retorna que tan cerca de la liquiation esta un usuario
+     * if user health factor < 1 -> liquidate
+    */
+    function _healthFactor(address user) private view returns (uint256) {
+        // Necesitaremos obtener el valor total de la garantia para asegurarnos de que el valor sea mayor que el total de DSC minted
+        //  total DSC minted
+        // total collateral Value
+        (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) = _getAccountInformation(user);
+    }
+
+    function _revertIfHealthFactorIsBroken(address user) internal view {
+        // 1. Ceck health factor (do they have enought collateral?)
+        // 2. Revert if they don't
+    }
+
+     //////////////////////////////////////////////////
+    //*     public & external view Functions        //
+    //////////////////////////////////////////////////
+
+    function getAccountColllateralValue(address user) public view returns (uint256) {
+        // nesecitamos recorrer cada collateral TOKENS, obtener la cantidad que han depositado
+        //  y luego asignelo al precio para obtener el valor en USD
+        for (uint256 i = 0; i < s_allowedCollateralTokens.length; i++) {
+            address addressToken = s_allowedCollateralTokens[i]; // address of token
+            uint256 amountDeposited = s_collateralDeposited[user][addressToken]; // amount of token deposited by user
+            uint256 totalCollateralValueInUSD = amountDeposited * s_priceFeeds[addressToken];
+        }
+    }
+
+    function getUsdValue(address user, address token) public view returns (uint256) {
+
+    }
 }
