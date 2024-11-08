@@ -21,7 +21,7 @@
 // private
 // view & pure functions
 
-pragma solidity 0.8.25;
+pragma solidity 0.8.24;
 
 /**
 * @title Decentralized Stable Coin
@@ -51,7 +51,7 @@ contract DecentralizedStableCoin is ERC20Burnable, Ownable {
      /** Type declarations */
     // address private s_treasury;
 
-    constructor(address treasury) 
+    constructor() 
     Ownable(msg.sender)
     ERC20("Decentralized Stable Coin", "DSC") {}
 
