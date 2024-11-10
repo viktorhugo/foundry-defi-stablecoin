@@ -53,7 +53,7 @@ contract DSCEngine is ReentrancyGuard{
     error DSCEngine__MustBeMoreThanZero();
     error DSCEngine__TokenAddresessAndPriceFeedAdressessMustBeSameLenght();
     error DSCEngine__NotAllowedToken();
-    error DSCEngine__TransferTokenCollateralFailed();
+    error DSCEngine__TransferTokenFailed();
     error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
     error DSCEngine__MintFailed();
 
@@ -78,6 +78,8 @@ contract DSCEngine is ReentrancyGuard{
     //////////////////////
     event CollateralDeposited(address indexed user, address indexed token, uint256 amount);
     event TransferTokenCollateral(address indexed user, address indexed token, uint256 amount);
+    event TransferTokenCollateralFromRedeem(address indexed user, address indexed token, uint256 amount);
+    event CollateralRedeemed(address indexed user, address indexed token, uint256 amount);
 
     ///////////////////
     //* Modifiers    //
@@ -115,6 +117,22 @@ contract DSCEngine is ReentrancyGuard{
     //* External Functions //
     ////////////////////////
 
+    /*
+     * @param tokenCollateralAddress the address of the collateral deposit token
+     * @param amountCollateral the amount of collateral deposit
+     * @param amountDscToMint the amount of DSC to mint
+     */
+    function depositCollateralAndMintDsc(
+        address tokenCollateralAddress, 
+        uint256 amountCollateral, 
+        uint256 amountDscToMint
+    ) external {
+        // 1. deposit collateral
+        depositCollateral(tokenCollateralAddress, amountCollateral);
+        // 2. mint DSC
+        mintDsc(amountDscToMint);
+    }
+
      // elegir que tipo de garantia quiere depositar 
     /*
     * @notice follows CEI pattern (verifica las interacciones de los efectos)
@@ -125,12 +143,11 @@ contract DSCEngine is ReentrancyGuard{
         address tokenCollateralAdrress, 
         uint256 amountCollateral
     ) 
-        external 
+        public 
         moreThanZero(amountCollateral) 
         isAllowToken(tokenCollateralAdrress) // check if tokenCollateralAdrress is allowed
-        nonReentrant { // nonReentrant verification (ataques mas comunes en la web3) 
-            // es buena practica cuando se ejecuctan contratos externos, ppuede que consuma un poco mas de gas pero es mas seguro
-
+        nonReentrant { // nonReentrant verification (ataques mas comunes en la web3) es buena practica cuando se ejecuctan contratos externos,
+                    //  puede que consuma un poco mas de gas pero es mas seguro
         // 1. hacer una manera de rastrear cuanta garantia alguien ha depositado
         s_collateralDeposited[msg.sender][tokenCollateralAdrress] += amountCollateral;
         // actualizando el estado emitimos un evento
@@ -138,10 +155,12 @@ contract DSCEngine is ReentrancyGuard{
         // 2. ahora conseguir los tokens, vamos a nesecitar un wrap al collateral como un ERC20 
         bool success = ERC20(tokenCollateralAdrress).transferFrom(msg.sender, address(this), amountCollateral);
         if (!success) {
-            revert DSCEngine__TransferTokenCollateralFailed();
+            revert DSCEngine__TransferTokenFailed();
         }
         // Emitimos un evento de transferencia de tokens
         emit TransferTokenCollateral(msg.sender, tokenCollateralAdrress, amountCollateral);
+        // luego verificamos el health factor is Broken (entonces si el health factor is broken se reverts las transacciones)
+        _revertIfHealthFactorIsBroken(msg.sender);
     }
 
     /*
@@ -150,7 +169,7 @@ contract DSCEngine is ReentrancyGuard{
      * @param amountDscToMint the amount of DSC to mint
      * @notice the must have more collateral value than the minimum thereshold
      */
-    function mintDsc(uint256 amountDscToMint) external moreThanZero(amountDscToMint) nonReentrant { // verificar si el valor del collateral > DSC amount
+    function mintDsc(uint256 amountDscToMint) public moreThanZero(amountDscToMint) nonReentrant { // verificar si el valor del collateral > DSC amount
         s_DSCMinted[msg.sender] += amountDscToMint;
         // check if they minter too much collateral (revert)
         _revertIfHealthFactorIsBroken(msg.sender);
@@ -161,11 +180,27 @@ contract DSCEngine is ReentrancyGuard{
         }
     }
 
-    function depositCollateralAndMintDsc() external {}
+    function redeemCollateralForDsc() external { // comom vamos a mover tokens simplemente haremos operaciones no reentrantes
 
-    function redeemCollateralForDsc() external {}
+    }
 
-    function redeemCollateral() external {}
+    //* orden para redimir collateral
+    // 1. su factor de salud tiene que ser > 1 despues de retirar la garantia
+    // DRY: Dont Repeat Yourself
+    // CEI: Check, Effects, Interactions
+    function redeemCollateral( address tokenCollateralAddress, uint256 amountCollateral) 
+    external moreThanZero(amountCollateral) 
+    nonReentrant { // comom vamos a mover tokens simplemente haremos operaciones no reentrantes
+        // retirar el collateral (garantia) y actualizar nuestra contabilidad, si intenta hacer sacar mas de lo que tiene (100 - 1000 ) ejecuta el REVERT
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] -= amountCollateral;
+        emit CollateralRedeemed(msg.sender, tokenCollateralAddress, amountCollateral);
+        bool success = ERC20(tokenCollateralAddress).transfer(msg.sender, amountCollateral);
+        if (!success) {
+            revert DSCEngine__TransferTokenFailed();
+        }
+        emit TransferTokenCollateralFromRedeem(msg.sender, tokenCollateralAddress, amountCollateral);
+
+    }
 
     function burnDsc() external {}
 
