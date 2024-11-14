@@ -38,6 +38,21 @@ contract DSCEngineTest is Test {
     }
 
 
+    /////////////////////////
+    //* Constructor Tests //
+    ///////////////////////
+    address[] public tokenAdresses;
+    address[] public priceFeedAdresses;
+    function testRevertsIfTokenLengthDoesMatchPriceeFeeds() public {
+        tokenAdresses.push(weth);
+        priceFeedAdresses.push(wbtcUsdPriceFeed);
+        priceFeedAdresses.push(wbtcUsdPriceFeed);
+
+        vm.expectRevert(DSCEngine.DSCEngine__TokenAddresessAndPriceFeedAdressessMustBeSameLenght.selector);
+        new DSCEngine( tokenAdresses, priceFeedAdresses, address(decentralizedStableCoin) );
+    }
+
+
     ////////////////////////
     //* Price Tests      //
     //////////////////////

@@ -290,11 +290,9 @@ contract DSCEngine is ReentrancyGuard {
                                             //////////////////////////////////////////////////
                                             // internal functions utilizamos el _antecesdido para declararlas
     /*
-    * @dev Low-level internal, dont call unless the functions calling it it cheking for healt factors being broken
+    * @dev Low-level internal, no llame a menos que la funcion que lo llamaesta comprobando si hay healhtFsctor brokens
     */
-    function _burnDsc(address onBehalfOf, address dscFrom, uint256 amountDscToBurn) 
-    private 
-    moreThanZero(amountDscToBurn) {
+    function _burnDsc(address onBehalfOf, address dscFrom, uint256 amountDscToBurn) private {
         // los descaontamos del s_DSCMinted contable 
         s_DSCMinted[onBehalfOf] -= amountDscToBurn;
         // enviamos los DSC a la cuenta del contrato"this"
