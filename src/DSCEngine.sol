@@ -51,7 +51,7 @@ contract DSCEngine is ReentrancyGuard {
     //* Errors       //
     ///////////////////
     error DSCEngine__MustBeMoreThanZero();
-    error DSCEngine__TokenAddresessAndPriceFeedAdressessMustBeSameLenght();
+    error DSCEngine__TokenAddressesAndPriceFeedAddressesMustBeSameLength();
     error DSCEngine__NotAllowedToken();
     error DSCEngine__TransferTokenFailed();
     error DSCEngine__BreaksHealthFactor(uint256 healthFactor);
@@ -98,20 +98,22 @@ contract DSCEngine is ReentrancyGuard {
     }
 
     constructor(
-        address[] memory tokenAddressess,
-        address[] memory priceFeedAddressess,
+        address[] memory tokenAddresses,
+        address[] memory priceFeedAddresses,
         address dscAddress // direccion de la moneda estable descentralizada
     ) {
+        console.log("DSCEngine tokenAddresses.length", tokenAddresses.length);
+        console.log("DSCEngine priceFeedAddresses.length", priceFeedAddresses.length);
         // USD price feeds
-        if (tokenAddressess.length != priceFeedAddressess.length) {
-            revert DSCEngine__TokenAddresessAndPriceFeedAdressessMustBeSameLenght();
+        if (tokenAddresses.length != priceFeedAddresses.length) {
+            revert DSCEngine__TokenAddressesAndPriceFeedAddressesMustBeSameLength();
         }
         // For example ETH / USD BTC / USD,MKR / USD, etc.. vamos a recorrer la matriz de direcciones de token
         // Los tokens que estan permitidos en la plataforma entonces si tienen un feed de precios, estan permitidos
-        for (uint256 i = 0; i < tokenAddressess.length; i++) {
+        for (uint256 i = 0; i < tokenAddresses.length; i++) {
             // llenamos el mapping
-            s_priceFeeds[tokenAddressess[i]] = priceFeedAddressess[i];
-            s_allowedCollateralTokens.push(tokenAddressess[i]); // add token to allow list
+            s_priceFeeds[tokenAddresses[i]] = priceFeedAddresses[i];
+            s_allowedCollateralTokens.push(tokenAddresses[i]); // add token to allow list
         }
         i_dsc = DecentralizedStableCoin(dscAddress);
     }
@@ -143,27 +145,29 @@ contract DSCEngine is ReentrancyGuard {
     * @param amountCollateral the amount of collateral deposit
     */
     function depositCollateral(
-        address tokenCollateralAdrress, 
+        address tokenCollateralAddress, 
         uint256 amountCollateral
     ) 
         public 
         moreThanZero(amountCollateral) 
-        isAllowToken(tokenCollateralAdrress) // check if tokenCollateralAdrress is allowed
+        isAllowToken(tokenCollateralAddress) // check if tokenCollateralAdrress is allowed
         nonReentrant { // nonReentrant verification (ataques mas comunes en la web3) es buena practica cuando se ejecuctan contratos externos,
                     //  puede que consuma un poco mas de gas pero es mas seguro
         // 1. hacer una manera de rastrear cuanta garantia alguien ha depositado
-        s_collateralDeposited[msg.sender][tokenCollateralAdrress] += amountCollateral;
+        s_collateralDeposited[msg.sender][tokenCollateralAddress] += amountCollateral;
         // actualizando el estado emitimos un evento
-        emit CollateralDeposited(msg.sender, tokenCollateralAdrress, amountCollateral);
+        emit CollateralDeposited(msg.sender, tokenCollateralAddress, amountCollateral);
         // 2. ahora conseguir los tokens, vamos a nesecitar un wrap al collateral como un ERC20 
-        bool success = ERC20(tokenCollateralAdrress).transferFrom(msg.sender, address(this), amountCollateral);
+        bool success = ERC20(tokenCollateralAddress).transferFrom(msg.sender, address(this), amountCollateral);
         if (!success) {
             revert DSCEngine__TransferTokenFailed();
         }
         // Emitimos un evento de transferencia de tokens
-        emit TransferTokenCollateral(msg.sender, tokenCollateralAdrress, amountCollateral);
+        emit TransferTokenCollateral(msg.sender, tokenCollateralAddress, amountCollateral);
         // luego verificamos el health factor is Broken (entonces si el health factor is broken se reverts las transacciones)
+        console.log('totalCollateralValueInUSD', amountCollateral);
         _revertIfHealthFactorIsBroken(msg.sender);
+        console.log('totalCollateralValueInUSD', msg.sender);
     }
 
     /*
@@ -333,8 +337,12 @@ contract DSCEngine is ReentrancyGuard {
         // Necesitaremos obtener el valor total de la garantia para asegurarnos de que el valor sea mayor que el total de DSC minted
         // total DSC minted -total collateral Value
         (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) = _getAccountInformation(user);
+        console.log('totalDscMinted', totalDscMinted);
+        console.log('totalCollateralValueInUSD', totalCollateralValueInUSD);
+        if (totalDscMinted == 0) return type(uint256).max;
         //monto de collateral ajustado para el threshold
         uint256 collateralAjusted = (totalCollateralValueInUSD * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+        console.log('collateralAjusted', collateralAjusted);
         //  $1000 ETH -> 100 DSC
         // 1000 * 0.5 = 500 / 100 = 5 > 1
         // se nesecita tener mas del doble de collateral
@@ -344,6 +352,7 @@ contract DSCEngine is ReentrancyGuard {
     function _revertIfHealthFactorIsBroken(address user) internal view {
         // 1. Ceck health factor (do they have enought collateral?)
         uint256 userHealthFactor = _healthFactor(user);
+        console.log('userHealthFactor', userHealthFactor);
         // 2. Revert if they don't
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
             revert DSCEngine__BreaksHealthFactor(userHealthFactor);
@@ -392,5 +401,9 @@ contract DSCEngine is ReentrancyGuard {
         // the returned value from CL will be 1000 * 1e8
         uint256 amountInUSD = uint256(answer) * ADDITIONAL_FEED_PRECISION * amount;
         return amountInUSD / PRECISION; 
+    }
+
+    function getAccountInformation( address user) external view returns (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) {
+        ( totalDscMinted, totalCollateralValueInUSD) = _getAccountInformation(user);
     }
 }

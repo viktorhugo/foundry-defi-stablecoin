@@ -41,15 +41,15 @@ contract DSCEngineTest is Test {
     /////////////////////////
     //* Constructor Tests //
     ///////////////////////
-    address[] public tokenAdresses;
-    address[] public priceFeedAdresses;
-    function testRevertsIfTokenLengthDoesMatchPriceeFeeds() public {
-        tokenAdresses.push(weth);
-        priceFeedAdresses.push(wbtcUsdPriceFeed);
-        priceFeedAdresses.push(wbtcUsdPriceFeed);
-
-        vm.expectRevert(DSCEngine.DSCEngine__TokenAddresessAndPriceFeedAdressessMustBeSameLenght.selector);
-        new DSCEngine( tokenAdresses, priceFeedAdresses, address(decentralizedStableCoin) );
+    address[] public tokenAddresses;
+    address[] public priceFeedAddresses;
+    function testRevertsIfTokenLengthDoesMatchPriceFeeds() public {
+        tokenAddresses.push(weth);
+        priceFeedAddresses.push(wbtcUsdPriceFeed);
+        priceFeedAddresses.push(wbtcUsdPriceFeed);
+        // expect revert
+        vm.expectRevert(DSCEngine.DSCEngine__TokenAddressesAndPriceFeedAddressesMustBeSameLength.selector);
+        new DSCEngine( tokenAddresses, priceFeedAddresses, address(decentralizedStableCoin) );
     }
 
 
@@ -58,12 +58,23 @@ contract DSCEngineTest is Test {
     //////////////////////
 
     function testGetUsdValue() public view{
-        uint256 ethAmout = 15e18;
+        uint256 ethAmount = 15e18;
         // 15e18 * 3000/ETH = 45000E18
         uint256 expectedValue = 45000e18;
-        uint256 usdValue = dscEngine.getUsdValue(weth, ethAmout);
+        uint256 usdValue = dscEngine.getUsdValue(weth, ethAmount);
         console.log('usdValue', usdValue);
+        console.log('expectedValue', expectedValue);
         assertEq(expectedValue, usdValue);
+    }
+
+    function testGetTokenAmountFromUsd() public view{
+        uint256 usdAmountInWei = 300 ether;
+        // $3.000 / ETH, $300
+        uint256 expectedValue = 0.1 ether;
+        uint256 actualWethValue = dscEngine.getTokenAmountFromUsd(weth, usdAmountInWei);
+        console.log('actualWeth', actualWethValue);
+        console.log('expectedValue', expectedValue);
+        assertEq(expectedValue, actualWethValue);
     }
 
      /////////////////////////////////
@@ -77,4 +88,32 @@ contract DSCEngineTest is Test {
         dscEngine.depositCollateral(address(weth), 0);
         vm.stopPrank();
     }
+
+    function testRevertsWithUnapprovedCollateral() public depositedCollateral { // tratar de depositar un token que no esta permitido
+        ERC20Mock ranToken = new ERC20Mock();
+        vm.startPrank(USER);
+        vm.expectRevert(DSCEngine.DSCEngine__NotAllowedToken.selector);
+        dscEngine.depositCollateral(address(ranToken), AMOUNT_COLLATERAL);
+        vm.stopPrank();
+    }
+
+    modifier depositedCollateral() {
+        vm.startPrank(USER);
+        ERC20Mock(weth).approve(address(dscEngine), AMOUNT_COLLATERAL);
+        dscEngine.depositCollateral(address(weth), AMOUNT_COLLATERAL);
+        vm.stopPrank();
+        _;
+    }
+
+    function testDepositCollateralAndGetAccountInfo() public depositedCollateral {
+        (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) = dscEngine.getAccountInformation(USER);
+        console.log('totalDscMinted', totalDscMinted);
+        console.log('totalCollateralValueInUSD', totalCollateralValueInUSD);
+        uint256 expectedTotalDscMinted = 0;
+        uint256 expectedDepositedCollateralAmount = dscEngine.getTokenAmountFromUsd(weth, totalCollateralValueInUSD);
+        console.log('expectedDepositedCollateralAmount', expectedDepositedCollateralAmount);
+        assertEq(expectedTotalDscMinted, totalDscMinted);
+        assertEq(expectedDepositedCollateralAmount, AMOUNT_COLLATERAL);
+    }
+
 }
