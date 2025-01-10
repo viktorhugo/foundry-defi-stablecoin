@@ -31,17 +31,17 @@ import { AggregatorV3Interface } from "@chainlink-brownie-contracts/contracts/sr
 
 /**
  * @title DSCEngine
- * @author Victor mosquera
- * The engine is desingned to be as minimal as posible, and the tokens maintain a 1 token  == $1 peg
+ * @author Victor Mosquera
+ * The engine is designed to be as minimal as possible, and the tokens maintain a 1 token  == $1 peg
  * This stablecoin has the properties:
  * - Exogenous Collateral
  * - Dollar Pegged
- * - Algoritmically Stable
+ * - Algorithmically Stable
  * It is similar to DAI had no governance, no fees, and was only backed by wETH and wBTC.
- * Our DSC system should always be "overcollateralized". At no point, should the vallue of all
+ * Our DSC system should always be "overcollateralized". At no point, should the value of all
  * collateral <= the $ backed value of all the DSC.
  * @notice this contract is the core of the DSC System. It handles all the logic for minting and
- * reddeeming DSC, as well as depositing and withdrawing collateral.
+ * redeeming DSC, as well as depositing and withdrawing collateral.
  * @notice this contract is VERY loosely based on the MakerDAO (DAI) system.
  */
 
@@ -72,6 +72,7 @@ contract DSCEngine is ReentrancyGuard {
     mapping(address token => address priceFeed) private s_priceFeeds; // token price feed
     mapping(address user => mapping(address token => uint256 amount)) private s_collateralDeposited;
     mapping(address user => uint256 amountDscMinted) private s_DSCMinted;
+
     address[] private s_allowedCollateralTokens; // tokens permitidos
     
     DecentralizedStableCoin private immutable i_dsc; // DSC contract
@@ -93,7 +94,12 @@ contract DSCEngine is ReentrancyGuard {
     }
 
     modifier isAllowToken(address addressToken) { // check if token is allowed
-        if (s_priceFeeds[addressToken]  == address(0)) revert DSCEngine__NotAllowedToken();
+        
+        if (s_priceFeeds[addressToken]  == address(0)) { 
+            console.log('|=| s_priceFeeds[addressToken]', s_priceFeeds[addressToken]);
+            console.log('|=| address(0)', address(0));
+            revert DSCEngine__NotAllowedToken();
+        }
         _;
     }
 
@@ -102,8 +108,8 @@ contract DSCEngine is ReentrancyGuard {
         address[] memory priceFeedAddresses,
         address dscAddress // direccion de la moneda estable descentralizada
     ) {
-        console.log("DSCEngine tokenAddresses.length", tokenAddresses.length);
-        console.log("DSCEngine priceFeedAddresses.length", priceFeedAddresses.length);
+        console.log("|= DSCEngine =| tokenAddresses.length", tokenAddresses.length);
+        console.log("|= DSCEngine =| priceFeedAddresses.length", priceFeedAddresses.length);
         // USD price feeds
         if (tokenAddresses.length != priceFeedAddresses.length) {
             revert DSCEngine__TokenAddressesAndPriceFeedAddressesMustBeSameLength();
@@ -165,9 +171,8 @@ contract DSCEngine is ReentrancyGuard {
         // Emitimos un evento de transferencia de tokens
         emit TransferTokenCollateral(msg.sender, tokenCollateralAddress, amountCollateral);
         // luego verificamos el health factor is Broken (entonces si el health factor is broken se reverts las transacciones)
-        console.log('totalCollateralValueInUSD', amountCollateral);
+        console.log('total Collateral Value In USD: $', amountCollateral / 1e18);
         _revertIfHealthFactorIsBroken(msg.sender);
-        console.log('totalCollateralValueInUSD', msg.sender);
     }
 
     /*
@@ -286,8 +291,42 @@ contract DSCEngine is ReentrancyGuard {
         _revertIfHealthFactorIsBroken(msg.sender);
     }
 
-    // permite ver que tn saludables estan las personas
-    function getHealthFactor() external view returns (uint256) {}
+    function calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd) external pure returns (uint256) {
+        return _calculateHealthFactor(totalDscMinted, collateralValueInUsd);
+    }
+
+    // permite ver que tan saludables estan las personas
+    function getHealthFactor(address user ) external view returns (uint256) {
+        return _healthFactor(user);
+    }
+    
+    function getLiquidationBonus() external pure returns (uint256) {
+        return LIQUIDATION_BONUS;
+    }
+
+    function getCollateralTokenPriceFeed(address tokenCollateralAddress) external view returns (address) {
+        return s_priceFeeds[tokenCollateralAddress];
+    }
+
+    function getCollateralTokens() external view returns (address[] memory) {
+        return s_allowedCollateralTokens;
+    }
+
+    function getMinHealthFactor() external pure returns (uint256) {
+        return MIN_HEALTH_FACTOR;
+    }
+
+    function getLiquidationThreshold() external pure returns (uint256) {
+        return LIQUIDATION_THRESHOLD;
+    }
+
+    function getCollateralBalanceOfUser(address user, address tokenCollateralAddress) external view returns (uint256) {
+        return s_collateralDeposited[user][tokenCollateralAddress];
+    }
+
+    function getDsc() external view returns (address) {
+        return address(i_dsc);
+    }
 
                                             //////////////////////////////////////////////////
                                             //*  Private & Internal view Functions          //
@@ -324,7 +363,7 @@ contract DSCEngine is ReentrancyGuard {
     }
 
     function _getAccountInformation(address user) private view returns (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) {
-        totalDscMinted = s_DSCMinted[user];
+        totalDscMinted = s_DSCMinted[user]; // total Amount DSC minted por el usuario
         totalCollateralValueInUSD = getAccountColllateralValue(user); // valor total de toas las garantias del usuario
         return (totalDscMinted, totalCollateralValueInUSD);
     }
@@ -334,29 +373,37 @@ contract DSCEngine is ReentrancyGuard {
      * if user health factor < 1 -> liquidate
     */
     function _healthFactor(address user) private view returns (uint256 healthFactor) {
-        // Necesitaremos obtener el valor total de la garantia para asegurarnos de que el valor sea mayor que el total de DSC minted
-        // total DSC minted -total collateral Value
+        // get account information
         (uint256 totalDscMinted, uint256 totalCollateralValueInUSD) = _getAccountInformation(user);
-        console.log('totalDscMinted', totalDscMinted);
-        console.log('totalCollateralValueInUSD', totalCollateralValueInUSD);
-        if (totalDscMinted == 0) return type(uint256).max;
-        //monto de collateral ajustado para el threshold
-        uint256 collateralAjusted = (totalCollateralValueInUSD * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
-        console.log('collateralAjusted', collateralAjusted);
-        //  $1000 ETH -> 100 DSC
-        // 1000 * 0.5 = 500 / 100 = 5 > 1
-        // se nesecita tener mas del doble de collateral
-        return (collateralAjusted * PRECISION ) / totalDscMinted;
+        // calculate health factor
+        healthFactor = _calculateHealthFactor(totalDscMinted, totalCollateralValueInUSD);
+        return healthFactor;
     }
 
     function _revertIfHealthFactorIsBroken(address user) internal view {
         // 1. Ceck health factor (do they have enought collateral?)
         uint256 userHealthFactor = _healthFactor(user);
-        console.log('userHealthFactor', userHealthFactor);
+        console.log('user HealthFactor', userHealthFactor);
         // 2. Revert if they don't
         if (userHealthFactor < MIN_HEALTH_FACTOR) {
             revert DSCEngine__BreaksHealthFactor(userHealthFactor);
         }
+    }
+
+    function _calculateHealthFactor(uint256 totalDscMinted, uint256 collateralValueInUsd) internal pure returns (uint256) {
+        // Necesitaremos obtener el valor total de la garantia para asegurarnos de que el valor sea mayor que el total de DSC minted
+        // total DSC minted -total collateral Value
+        console.log('_calculateHealthFactor - totalDscMinted', totalDscMinted);
+        console.log('_calculateHealthFactor - total Collateral Value In USD: $', collateralValueInUsd / 1e18);
+        console.log('_calculateHealthFactor - totalDscMinted: ', totalDscMinted);
+        if (totalDscMinted == 0) return type(uint256).max;
+        //monto de collateral ajustado para el threshold
+        uint256 collateralAjusted = (collateralValueInUsd * LIQUIDATION_THRESHOLD) / LIQUIDATION_PRECISION;
+        console.log('_calculateHealthFactor - collateralAjusted', collateralAjusted);
+        //  $1000 ETH -> 100 DSC
+        // 1000 * 0.5 = 500 / 100 = 5 > 1 
+        // se nesecita tener mas del doble de collateral
+        return (collateralAjusted * PRECISION ) / totalDscMinted;
     }
 
                                         //////////////////////////////////////////////////
@@ -367,6 +414,7 @@ contract DSCEngine is ReentrancyGuard {
         // 1. get price of token (ETH)
         // $/ETH => ETH ?
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
+        // console.log('|= DSCENGINE =| priceFeed', priceFeed);
         ( ,int256 answer, , , ) = priceFeed.latestRoundData();
         // 1 ETH = $1000
         // $3000e8 * 1e10 = 3000e18
@@ -397,8 +445,8 @@ contract DSCEngine is ReentrancyGuard {
         // priceFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306)
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         ( ,int256 answer, , , ) = priceFeed.latestRoundData();
-        // 1 ETH = $1000
-        // the returned value from CL will be 1000 * 1e8
+        // 1 ETH = $3000
+        // the returned value from CL will be 3000 * 1e8
         uint256 amountInUSD = uint256(answer) * ADDITIONAL_FEED_PRECISION * amount;
         return amountInUSD / PRECISION; 
     }

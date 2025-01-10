@@ -11,3 +11,9 @@
     a. People can only mint the stablecoin with enough collateral (coded)
 
 3. Collateral: Exogenus (Crypto => wETH, wBTC ).
+
+- Calculate health factor function
+- Set health factor if deb is 0
+- Added a bunch of view function
+
+1. what are our invariant/properties?
