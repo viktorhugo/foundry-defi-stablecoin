@@ -13,6 +13,6 @@ runs = 1000
 [invariant]
 runs = 128
 depth = 128 # Number of calls in single execution
-fail_on_revert = false
+fail_on_revert = true # Fail if a transaction reverts
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
