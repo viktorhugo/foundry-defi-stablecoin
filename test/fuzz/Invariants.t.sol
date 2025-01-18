@@ -34,10 +34,13 @@ contract Invariants is StdInvariant, Test  {
         (decentralizedStableCoin, dscEngine, helperConfig ) = deployer.run();
         (, , weth, wbtc, ) = helperConfig.activeNetworkConfig();
         // targetContract(address(dscEngine));
-        //* hey, no llames a redeem the collateral a menos que haya collateral depositada
+        //* hey, no llames a redeem the collateral a menos que haya collateral para redeem
+        //* solo llama a canjear garantia cuando haya garantia alli
         // * entonces vanos a crear un handler que maneje la forma en hacer las llamadas al DSC
         handler = new Handler(dscEngine, decentralizedStableCoin);
-        targetContract(address(handler));
+        //* recuerda que cuando se trabaja con invariantes, esto se llamara contract con una tonelada de diferentes 
+        //* functions y un monton de llamadas diferentes, sin embargo tambien los llamara con direcciones aleatorias
+        targetContract(address(handler)); 
     }
 
     //* ahora podremos agregar nuestra invariante
@@ -55,6 +58,7 @@ contract Invariants is StdInvariant, Test  {
         console.log(" => InvariantTest - wethValueUSD: $", wethValueUSD / 1e18);
         uint256 wbtcValueUSD = dscEngine.getUsdValue(wbtc, totalBtcDeposited);
         console.log(" => InvariantTest - wbtcValueUSD: $", wbtcValueUSD / 1e18);
+        console.log(" => InvariantTest - Times mint is called: ", handler.timesMintIsCalled());
 
         console.log(" => InvariantTest - wethValueUSD + wbtcValueUSD: $", (wethValueUSD + wbtcValueUSD) / 1e18);
         //* si el total de la deuda es mayor que el total de la deuda, entonces la invariante se rompe

@@ -328,6 +328,19 @@ contract DSCEngine is ReentrancyGuard {
         return address(i_dsc);
     }
 
+    function getPrecision() external pure returns (uint256) {
+        return PRECISION;
+    }
+
+    function getAdditionalFeedPrecision() external pure returns (uint256) {
+        return ADDITIONAL_FEED_PRECISION;
+    }
+
+    function getLiquidationPrecision() external pure returns (uint256) {
+        return LIQUIDATION_PRECISION;
+    }
+
+
                                             //////////////////////////////////////////////////
                                             //*  Private & Internal view Functions          //
                                             //////////////////////////////////////////////////
