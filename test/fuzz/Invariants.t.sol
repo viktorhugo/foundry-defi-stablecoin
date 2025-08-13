@@ -48,7 +48,7 @@ contract Invariants is StdInvariant, Test  {
         //* queremos obtener el valor de todos las collaterals en el protocolo
         //* comparelo con toda la deuda (DSC)
         uint256 totalSupply = decentralizedStableCoin.totalSupply(); //* este es todo suministro de DSC en el protocolo
-        console.log(" => InvariantTest - totalSupply", totalSupply);
+        console.log(" => InvariantTest - totalSupply", totalSupply );
         uint256 totalWthDeposited = IERC20(weth).balanceOf(address(dscEngine)); //* esto es el total de weth depositado en este contrato
         console.log(" => InvariantTest - totalWthDeposited", totalWthDeposited);
         uint256 totalBtcDeposited = IERC20(wbtc).balanceOf(address(dscEngine)); //* esto es el total de wbtc depositado en este contrato

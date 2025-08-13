@@ -7,13 +7,16 @@ import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";
 import {Test} from "lib/forge-std/src/Test.sol";
 import { console } from "lib/forge-std/src/Script.sol";
 
+import { MockV3Aggregator } from "../../test/mocks/MockV3Aggregator.sol";
+
 contract  Handler is Test {
 
     DSCEngine dscEngine;
     DecentralizedStableCoin decentralizedStableCoin;
     ERC20Mock weth;
     ERC20Mock wbtc;
-    
+    MockV3Aggregator public ethUsdPriceFeed;
+
     uint256 public timesMintIsCalled = 0;
     address[] public usersWithCollateralDeposited;
 
@@ -25,6 +28,8 @@ contract  Handler is Test {
         address[] memory collateralTokens = dscEngine.getCollateralTokens();
         weth = ERC20Mock(collateralTokens[0]);
         wbtc = ERC20Mock(collateralTokens[1]);
+        //* ahora tenemos un feed de precios eth en USD
+        ethUsdPriceFeed = MockV3Aggregator(dscEngine.getCollateralTokenPriceFeed(address(weth)));
     }
 
     //* desposit collateral
@@ -61,6 +66,7 @@ contract  Handler is Test {
         vm.stopPrank();
     }
 
+    //* mint DSC
     function mintDsc(uint256 addressSeed, uint256 amountDscToMint) public {
         //* para que podamos mintar DSC solo si es con una direccion que tiene la garantia depositada
         //* por que es imposible que alguien acuñe dsc sin haber depositado garantias
@@ -78,7 +84,7 @@ contract  Handler is Test {
             return;
         }
         console.log('maxDscToMint', maxDscToMint);
-        amountDscToMint = bound(amountDscToMint, 0, uint256(maxDscToMint) );
+        amountDscToMint = bound(amountDscToMint, 0, uint256(maxDscToMint));
         if (amountDscToMint == 0) {
             return;
         }
@@ -87,6 +93,15 @@ contract  Handler is Test {
         vm.stopPrank();
         timesMintIsCalled++;
     }
+
+    //* esto rompe nuestro conjunto de pruebas invariantes y esto seria 100% B,
+    //* en una auditoria  de smart contracts dicen, hey si el precio de un activo
+    //* cae tambien rapidamente el sistema tambien se rompe
+    // function updateCollateralPrice(uint96 newPrice) public {
+    //     console.log('updateCollateralPrice', newPrice);
+    //     int256 newPriceInt = int256(uint256(newPrice));
+    //     ethUsdPriceFeed.updateAnswer(newPriceInt);
+    // }
 
     function invariant_gettersShouldNptRevert() public view {
         dscEngine.getLiquidationBonus();

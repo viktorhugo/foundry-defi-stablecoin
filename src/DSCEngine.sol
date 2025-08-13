@@ -28,6 +28,7 @@ import { DecentralizedStableCoin } from "./DecentralizedStableCoin.sol";
 import { ReentrancyGuard } from "@openzeppelin/contracts/utils/ReentrancyGuard.sol"; 
 import { ERC20 } from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import { AggregatorV3Interface } from "@chainlink-brownie-contracts/contracts/src/v0.8/shared/interfaces/AggregatorV3Interface.sol";
+import { OracleLib } from "./libraries/OracleLib.sol";
 
 /**
  * @title DSCEngine
@@ -58,6 +59,11 @@ contract DSCEngine is ReentrancyGuard {
     error DSCEngine__MintFailed();
     error DSCEngine__HealthFactorOk();
     error DSCEngine__HealthFactorNotImproved();
+
+    ////////////////////
+    //* Types       //
+    ///////////////////
+    using OracleLib for AggregatorV3Interface; //* usemos OracleLib para AggregatorV3Interface
 
     ///////////////////////
     //* State Variables  //
@@ -428,7 +434,7 @@ contract DSCEngine is ReentrancyGuard {
         // $/ETH => ETH ?
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
         // console.log('|= DSCENGINE =| priceFeed', priceFeed);
-        ( ,int256 answer, , , ) = priceFeed.latestRoundData();
+        ( ,int256 answer, , , ) = priceFeed.staleCheckLatestRoundData();
         // 1 ETH = $1000
         // $3000e8 * 1e10 = 3000e18
         uint256 amountInUSD = uint256(answer) * ADDITIONAL_FEED_PRECISION; // add feed precision, viene con los 8 decimales
@@ -457,7 +463,7 @@ contract DSCEngine is ReentrancyGuard {
         // obtenemos el precio del token
         // priceFeed = AggregatorV3Interface(0x694AA1769357215DE4FAC081bf1f309aDC325306)
         AggregatorV3Interface priceFeed = AggregatorV3Interface(s_priceFeeds[token]);
-        ( ,int256 answer, , , ) = priceFeed.latestRoundData();
+        ( ,int256 answer, , , ) = priceFeed.staleCheckLatestRoundData();
         // 1 ETH = $3000
         // the returned value from CL will be 3000 * 1e8
         uint256 amountInUSD = uint256(answer) * ADDITIONAL_FEED_PRECISION * amount;
