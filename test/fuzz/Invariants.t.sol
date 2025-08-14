@@ -8,7 +8,7 @@
 
 //* 2. Getter view functions should never revert <-- esto es un invariancia perecedera(evergreen invariant)
 
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.30;
 import {Test} from "lib/forge-std/src/Test.sol";
 import { StdInvariant } from "lib/forge-std/src/StdInvariant.sol";
 import { DeployDSC } from "../../script/DeployDSC.s.sol";

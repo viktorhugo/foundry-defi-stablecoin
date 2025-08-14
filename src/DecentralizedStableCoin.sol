@@ -21,7 +21,7 @@
 // private
 // view & pure functions
 
-pragma solidity 0.8.25;
+pragma solidity 0.8.30;
 
 /**
 * @title Decentralized Stable Coin

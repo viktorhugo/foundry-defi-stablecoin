@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 //* este controlador va a limitar la forma en que llamamos funciones
-pragma solidity ^0.8.25;
+pragma solidity ^0.8.30;
 import { DSCEngine } from "../../src/DSCEngine.sol";
 import { DecentralizedStableCoin } from "../../src/DecentralizedStableCoin.sol";
 import { ERC20Mock } from "@openzeppelin/contracts/mocks/token/ERC20Mock.sol";

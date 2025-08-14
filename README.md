@@ -3,7 +3,7 @@
 1. (Relative Stability) Anchored or Pegged  -> $1.00
 <!-- Como podemos asegurarnos que este siempre vinculado a un dolar -->
     a. Chainlink process feed
-    b. 
+    b. Set a function to exchange ETH & BTC -> $$$
 2. Stability Mechanism (Minting): Algorithmic (Decentralized). 
 <!-- No habra ninguna entidad centralizada que  vaya a acuñar, burn o mantener el precio,-->
 <!-- No existe una entidad controladora que controle nuestra stable coin -->
